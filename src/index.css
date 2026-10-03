@@ -1,0 +1,279 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    border-color: theme('colors.gray.200');
+  }
+
+  .dark * {
+    border-color: theme('colors.gray.800');
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+
+  .dark body {
+    @apply bg-gray-950 text-gray-100;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl;
+  }
+
+  .card-hover {
+    @apply card transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-lg;
+  }
+
+  .data-grid {
+    @apply grid gap-3;
+  }
+
+  .data-grid-2 {
+    @apply data-grid grid-cols-2;
+  }
+
+  .data-grid-3 {
+    @apply data-grid grid-cols-2 sm:grid-cols-3;
+  }
+
+  .data-grid-4 {
+    @apply data-grid grid-cols-2 sm:grid-cols-4;
+  }
+
+  .data-item {
+    @apply p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg;
+  }
+
+  .data-label {
+    @apply text-xs text-gray-500 dark:text-gray-400 font-medium;
+  }
+
+  .data-value {
+    @apply text-sm font-semibold text-gray-900 dark:text-white mt-0.5;
+  }
+
+  .price-up {
+    @apply text-green-600 dark:text-green-400;
+  }
+
+  .price-down {
+    @apply text-red-600 dark:text-red-400;
+  }
+
+  .price-neutral {
+    @apply text-gray-600 dark:text-gray-400;
+  }
+
+  .live-indicator {
+    @apply inline-flex items-center gap-1.5 text-xs font-medium;
+  }
+
+  .live-dot {
+    @apply w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse;
+  }
+
+  .live-dot-inactive {
+    @apply w-1.5 h-1.5 rounded-full bg-gray-400;
+  }
+
+  .symbol-badge {
+    @apply inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-bold text-xs;
+  }
+
+  .symbol-badge-lg {
+    @apply w-10 h-10 rounded-xl text-sm;
+  }
+
+  .stat-card {
+    @apply p-4 rounded-xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900;
+  }
+
+  .stat-card-positive {
+    @apply stat-card border-green-100 dark:border-green-900/30 bg-green-50/50 dark:bg-green-900/10;
+  }
+
+  .stat-card-negative {
+    @apply stat-card border-red-100 dark:border-red-900/30 bg-red-50/50 dark:bg-red-900/10;
+  }
+
+  .trend-badge {
+    @apply inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold;
+  }
+
+  .trend-bullish {
+    @apply trend-badge bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400;
+  }
+
+  .trend-bearish {
+    @apply trend-badge bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400;
+  }
+
+  .trend-neutral {
+    @apply trend-badge bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400;
+  }
+
+  .progress-bar {
+    @apply h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden;
+  }
+
+  .progress-fill {
+    @apply h-full rounded-full transition-all duration-500;
+  }
+
+  .table-row {
+    @apply flex items-center gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer border-b border-gray-50 dark:border-gray-800/50 last:border-0;
+  }
+
+  .search-input {
+    @apply w-full pl-10 pr-4 py-2.5 text-sm rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white border border-transparent focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition-all;
+  }
+
+  .btn-primary {
+    @apply btn bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md;
+  }
+
+  .btn-secondary {
+    @apply btn bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200;
+  }
+
+  .btn-ghost {
+    @apply btn bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 dark:bg-gray-700 rounded-full;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400 dark:bg-gray-600;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .skeleton {
+    @apply animate-pulse bg-gray-200 dark:bg-gray-800 rounded;
+  }
+
+  @keyframes ticker-flash {
+    0%, 100% { background-color: transparent; }
+    50% { background-color: rgba(59, 130, 246, 0.1); }
+  }
+
+  .ticker-flash {
+    animation: ticker-flash 0.3s ease-in-out;
+  }
+
+  .chart-container {
+    @apply relative w-full rounded-xl overflow-hidden;
+    min-height: 200px;
+    max-height: 300px;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r;
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slide-up 0.3s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scale-in 0.2s ease-out;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slide-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes scale-in {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900;
+  }
+}
+
+select {
+  @apply appearance-none bg-no-repeat bg-right pr-8 cursor-pointer;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.5rem center;
+  background-size: 1.5em 1.5em;
+}
+
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+/* Print styles for calculators */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .print-area {
+    background: white !important;
+    color: black !important;
+  }
+
+  .print-area * {
+    color: black !important;
+  }
+
+  body {
+    background: white !important;
+  }
+}

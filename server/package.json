@@ -1,0 +1,25 @@
+{
+  "name": "investpredictor-proxy",
+  "version": "1.0.0",
+  "description": "Finnhub API proxy server with caching for InvestPredictor",
+  "main": "proxy.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node proxy.js",
+    "dev": "node --watch proxy.js",
+    "audit": "npm audit",
+    "audit:fix": "npm audit fix",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.4",
+    "express": "^4.19.2",
+    "helmet": "^7.1.0",
+    "node-cache": "^5.1.2",
+    "node-fetch": "^2.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
