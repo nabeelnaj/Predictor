@@ -1,14 +1,10 @@
 // =====================
-// Finnhub API Client (Proxy-based)
+// Finnhub API Client (Vercel Serverless Functions)
 // =====================
-// All requests go through our backend proxy to avoid exposing API key
-// and to implement server-side caching/rate limiting.
-import { getEnv } from './env';
+// All requests go through Vercel Serverless Functions on the same domain
+// No API key exposure, server-side caching/rate limiting via Vercel KV
 
-// Proxy base URL - configure via environment variable (validated at startup)
-const PROXY_BASE_URL = getEnv('VITE_PROXY_URL');
-
-// Minimal client-side cache for static data (fallback if proxy unavailable)
+// Minimal client-side cache for static data (fallback if API unavailable)
 const staticCache = new Map<string, { data: unknown; timestamp: number }>();
 const STATIC_CACHE_TTL = 300_000; // 5 minutes
 
@@ -53,22 +49,20 @@ async function fetchFromProxy<T>(endpoint: string, useStaticCache = false, signa
     }
   }
 
-  const url = `${PROXY_BASE_URL}${endpoint}`;
-  
+  // Use relative URL - API is on same domain (Vercel)
+  const url = `${endpoint}`;
+
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
     
-    // Combine signals if provided
     if (signal) {
       signal.addEventListener('abort', () => controller.abort());
     }
     
     const res = await fetch(url, { 
       signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       credentials: 'include', // For cookie-based auth if needed
     });
     
@@ -77,7 +71,7 @@ async function fetchFromProxy<T>(endpoint: string, useStaticCache = false, signa
     if (!res.ok) {
       const errorText = await res.text().catch(() => '');
       throw new ProxyError(
-        `Proxy API error: ${res.status}`,
+        `API error: ${res.status}`,
         res.status,
         endpoint
       );
@@ -91,12 +85,13 @@ async function fetchFromProxy<T>(endpoint: string, useStaticCache = false, signa
     
     return data as T;
   } catch (err) {
+    clearTimeout(timeoutId);
     if (err instanceof ProxyError) throw err;
     if (err.name === 'AbortError' || err.name === 'TimeoutError') {
       throw new ProxyError('Request timeout', 408, endpoint);
     }
     if (err instanceof TypeError && err.message.includes('fetch')) {
-      throw new ProxyError('Network error - proxy unavailable', 0, endpoint);
+      throw new ProxyError('Network error - API unavailable', 0, endpoint);
     }
     throw new ProxyError(
       err instanceof Error ? err.message : 'Unknown error',
@@ -111,186 +106,100 @@ async function fetchFromProxy<T>(endpoint: string, useStaticCache = false, signa
 // =====================
 
 export interface Quote {
-  c: number; // current price
-  d: number; // change
-  dp: number; // percent change
-  h: number; // high price of the day
-  l: number; // low price of the day
-  o: number; // open price of the day
-  pc: number; // previous close price
-  t: number; // timestamp
-  v?: number; // volume (not always returned)
+  c: number; d: number; dp: number; h: number; l: number;
+  o: number; pc: number; t: number; v?: number;
 }
 
 export interface CompanyProfile {
-  country: string;
-  currency: string;
-  exchange: string;
-  finnhubIndustry: string;
-  ipo: string;
-  logo: string;
-  marketCapitalization: number;
-  name: string;
-  phone: string;
-  shareOutstanding: number;
-  symbol: string;
-  weburl: string;
-  ticker: string;
+  country: string; currency: string; exchange: string;
+  finnhubIndustry: string; ipo: string; logo: string;
+  marketCapitalization: number; name: string; phone: string;
+  shareOutstanding: number; symbol: string; weburl: string; ticker: string;
 }
 
 export interface BasicFinancials {
-  metric: Record<string, number>;
-  series: unknown;
+  metric: Record<string, number>; series: unknown;
 }
 
 export interface Candle {
-  t: number[];
-  o: number[];
-  h: number[];
-  l: number[];
-  c: number[];
-  v: number[];
-  s: string;
+  t: number[]; o: number[]; h: number[]; l: number[]; c: number[]; v: number[]; s: string;
 }
 
 export interface NewsItem {
-  id: number;
-  category: string;
-  datetime: number;
-  headline: string;
-  image: string;
-  related: string;
-  source: string;
-  summary: string;
-  url: string;
+  id: number; category: string; datetime: number; headline: string;
+  image: string; related: string; source: string; summary: string; url: string;
 }
 
 export interface SymbolSearchResult {
-  symbol: string;
-  description: string;
-  displaySymbol: string;
-  type: string;
+  symbol: string; description: string; displaySymbol: string; type: string;
 }
 
 export interface PriceTarget {
-  targetHigh: number;
-  targetLow: number;
-  targetMean: number;
-  targetMedian: number;
-  numberOfAnalysts: number;
+  targetHigh: number; targetLow: number; targetMean: number;
+  targetMedian: number; numberOfAnalysts: number;
 }
 
 export interface RecommendationTrend {
-  period: string;
-  buy: number;
-  hold: number;
-  sell: number;
-  strongBuy: number;
-  strongSell: number;
+  period: string; buy: number; hold: number; sell: number;
+  strongBuy: number; strongSell: number;
 }
 
 export interface SectorPerformance {
-  sector: string;
-  changePercentage: number;
+  sector: string; changePercentage: number;
 }
 
 export interface MarketIndex {
-  symbol: string;
-  name: string;
-  displaySymbol: string;
-  quote: Quote | null;
+  symbol: string; name: string; displaySymbol: string; quote: Quote | null;
 }
 
 // =====================
-// Input Validation Helpers
+// Real-time API Functions (via Vercel Serverless)
 // =====================
 
-function validateSymbol(symbol: string): string {
-  if (!symbol || typeof symbol !== 'string') {
-    throw new ValidationError('Symbol is required', 'symbol');
-  }
-  const sanitized = symbol.trim().toUpperCase();
-  if (!/^[A-Z0-9.\-^]{1,10}$/.test(sanitized)) {
-    throw new ValidationError('Invalid symbol format', 'symbol');
-  }
-  return sanitized;
-}
-
-function validateCategory(category: string): 'general' | 'forex' | 'crypto' | 'merger' {
-  const valid = ['general', 'forex', 'crypto', 'merger'] as const;
-  if (!valid.includes(category as any)) {
-    throw new ValidationError('Invalid category', 'category');
-  }
-  return category as 'general' | 'forex' | 'crypto' | 'merger';
-}
-
-function validateDate(dateStr: string): string {
-  if (!dateStr || typeof dateStr !== 'string') {
-    throw new ValidationError('Date is required', 'date');
-  }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    throw new ValidationError('Date must be in YYYY-MM-DD format', 'date');
-  }
-  const date = new Date(dateStr);
-  if (isNaN(date.getTime())) {
-    throw new ValidationError('Invalid date', 'date');
-  }
-  return dateStr;
-}
-
-// =====================
-// Real-time API Functions (via Proxy)
-// =====================
-
-// Quotes are NOT cached on client - proxy handles caching
 export async function getQuote(symbol: string): Promise<Quote | null> {
   try {
-    const validSymbol = validateSymbol(symbol);
+    if (!symbol) throw new ValidationError('Symbol is required', 'symbol');
+    const validSymbol = symbol.trim().toUpperCase();
+    if (!/^[A-Z0-9.\-^]{1,10}$/.test(validSymbol)) throw new ValidationError('Invalid symbol format', 'symbol');
     return await fetchFromProxy<Quote>(`/api/market/quote?symbol=${encodeURIComponent(validSymbol)}`, false);
-  } catch (err) {
-    if (err instanceof ValidationError) throw err;
-    console.error('[Finnhub] Quote fetch failed:', err);
+  } catch {
     return null;
   }
 }
 
 export async function getCompanyProfile(symbol: string): Promise<CompanyProfile | null> {
   try {
-    const validSymbol = validateSymbol(symbol);
+    if (!symbol) throw new ValidationError('Symbol is required', 'symbol');
+    const validSymbol = symbol.trim().toUpperCase();
+    if (!/^[A-Z0-9.\-^]{1,10}$/.test(validSymbol)) throw new ValidationError('Invalid symbol format', 'symbol');
     return await fetchFromProxy<CompanyProfile>(`/api/market/profile?symbol=${encodeURIComponent(validSymbol)}`, true);
-  } catch (err) {
-    if (err instanceof ValidationError) throw err;
-    console.error('[Finnhub] Profile fetch failed:', err);
+  } catch {
     return null;
   }
 }
 
 export async function getBasicFinancials(symbol: string): Promise<BasicFinancials | null> {
   try {
-    const validSymbol = validateSymbol(symbol);
+    if (!symbol) throw new ValidationError('Symbol is required', 'symbol');
+    const validSymbol = symbol.trim().toUpperCase();
+    if (!/^[A-Z0-9.\-^]{1,10}$/.test(validSymbol)) throw new ValidationError('Invalid symbol format', 'symbol');
     return await fetchFromProxy<BasicFinancials>(`/api/market/financials?symbol=${encodeURIComponent(validSymbol)}`, true);
-  } catch (err) {
-    if (err instanceof ValidationError) throw err;
-    console.error('[Finnhub] Financials fetch failed:', err);
+  } catch {
     return null;
   }
 }
 
 export async function getCandles(
-  symbol: string,
-  resolution: string,
-  from: number,
-  to: number
+  symbol: string, resolution: string, from: number, to: number
 ): Promise<{ o: number[]; h: number[]; l: number[]; c: number[]; v: number[]; t: number[] } | null> {
   try {
-    const validSymbol = validateSymbol(symbol);
+    if (!symbol) throw new ValidationError('Symbol is required', 'symbol');
+    const validSymbol = symbol.trim().toUpperCase();
+    if (!/^[A-Z0-9.\-^]{1,10}$/.test(validSymbol)) throw new ValidationError('Invalid symbol format', 'symbol');
+    
     const validResolutions = ['1', '5', '15', '30', '60', 'D', 'W', 'M'];
-    if (!validResolutions.includes(resolution)) {
-      throw new ValidationError('Invalid resolution', 'resolution');
-    }
-    if (!Number.isInteger(from) || !Number.isInteger(to) || from >= to) {
-      throw new ValidationError('Invalid time range', 'from/to');
-    }
+    if (!validResolutions.includes(resolution)) throw new ValidationError('Invalid resolution', 'resolution');
+    if (!Number.isInteger(from) || !Number.isInteger(to) || from >= to) throw new ValidationError('Invalid time range', 'from/to');
     
     const data = await fetchFromProxy<Candle>(
       `/api/market/candles?symbol=${encodeURIComponent(validSymbol)}&resolution=${resolution}&from=${from}&to=${to}`,
@@ -298,57 +207,48 @@ export async function getCandles(
     );
     if (data.s !== 'ok' || !data.c?.length) return null;
     return { o: data.o, h: data.h, l: data.l, c: data.c, v: data.v, t: data.t };
-  } catch (err) {
-    if (err instanceof ValidationError) throw err;
-    console.error('[Finnhub] Candles fetch failed:', err);
+  } catch {
     return null;
   }
 }
 
 export async function getMarketNews(category: 'general' | 'forex' | 'crypto' | 'merger' = 'general'): Promise<NewsItem[]> {
   try {
-    const validCategory = validateCategory(category);
-    return await fetchFromProxy<NewsItem[]>(`/api/market/news?category=${validCategory}`, true);
-  } catch (err) {
-    if (err instanceof ValidationError) throw err;
-    console.error('[Finnhub] Market news fetch failed:', err);
+    const validCategories = ['general', 'forex', 'crypto', 'merger'] as const;
+    if (!validCategories.includes(category as any)) throw new ValidationError('Invalid category', 'category');
+    return await fetchFromProxy<NewsItem[]>(`/api/market/news?category=${category}`, true);
+  } catch {
     return [];
   }
 }
 
 export async function getCompanyNews(symbol: string, from: string, to: string): Promise<NewsItem[]> {
   try {
-    const validSymbol = validateSymbol(symbol);
-    const validFrom = validateDate(from);
-    const validTo = validateDate(to);
+    if (!symbol) throw new ValidationError('Symbol is required', 'symbol');
+    const validSymbol = symbol.trim().toUpperCase();
+    if (!/^[A-Z0-9.\-^]{1,10}$/.test(validSymbol)) throw new ValidationError('Invalid symbol format', 'symbol');
     
-    // Validate date range
-    const fromDate = new Date(validFrom);
-    const toDate = new Date(validTo);
-    if (fromDate > toDate) {
-      throw new ValidationError('from date must be before to date', 'from');
-    }
-    const maxRange = 30 * 24 * 60 * 60 * 1000; // 30 days max
-    if (toDate.getTime() - fromDate.getTime() > maxRange) {
-      throw new ValidationError('Date range exceeds maximum of 30 days', 'dateRange');
-    }
+    if (!from || !/^\d{4}-\d{2}-\d{2}$/.test(from)) throw new ValidationError('Invalid from date', 'from');
+    if (!to || !/^\d{4}-\d{2}-\d{2}$/.test(to)) throw new ValidationError('Invalid to date', 'to');
+    
+    const fromDate = new Date(from);
+    const toDate = new Date(to);
+    if (fromDate > toDate) throw new ValidationError('from date must be before to date', 'from');
+    if (toDate.getTime() - fromDate.getTime() > 30 * 24 * 60 * 60 * 1000) throw new ValidationError('Date range exceeds 30 days', 'dateRange');
     
     return await fetchFromProxy<NewsItem[]>(
-      `/api/market/company-news?symbol=${encodeURIComponent(validSymbol)}&from=${validFrom}&to=${validTo}`,
+      `/api/market/company-news?symbol=${encodeURIComponent(validSymbol)}&from=${from}&to=${to}`,
       true
     );
-  } catch (err) {
-    if (err instanceof ValidationError) throw err;
-    console.error('[Finnhub] Company news fetch failed:', err);
+  } catch {
     return [];
   }
 }
 
 export async function searchSymbols(query: string, signal?: AbortSignal): Promise<SymbolSearchResult[]> {
   if (!query || query.length < 1) return [];
-  if (query.length > 50) {
-    throw new ValidationError('Query too long', 'query');
-  }
+  if (query.length > 50) throw new ValidationError('Query too long', 'query');
+  
   try {
     const sanitized = query.trim();
     const data = await fetchFromProxy<{ count: number; result: SymbolSearchResult[] }>(
@@ -359,43 +259,41 @@ export async function searchSymbols(query: string, signal?: AbortSignal): Promis
     return (data.result || []).filter(r =>
       r.type === 'Common Stock' || r.type === 'ADR' || r.type === 'ETF'
     );
-  } catch (err) {
-    if (err instanceof ValidationError) throw err;
-    console.error('[Finnhub] Search failed:', err);
+  } catch {
     return [];
   }
 }
 
 export async function getPriceTarget(symbol: string): Promise<PriceTarget | null> {
   try {
-    const validSymbol = validateSymbol(symbol);
+    if (!symbol) throw new ValidationError('Symbol is required', 'symbol');
+    const validSymbol = symbol.trim().toUpperCase();
+    if (!/^[A-Z0-9.\-^]{1,10}$/.test(validSymbol)) throw new ValidationError('Invalid symbol format', 'symbol');
     return await fetchFromProxy<PriceTarget>(`/api/market/price-target?symbol=${encodeURIComponent(validSymbol)}`, true);
-  } catch (err) {
-    if (err instanceof ValidationError) throw err;
-    console.error('[Finnhub] Price target fetch failed:', err);
+  } catch {
     return null;
   }
 }
 
 export async function getRecommendationTrends(symbol: string): Promise<RecommendationTrend[]> {
   try {
-    const validSymbol = validateSymbol(symbol);
+    if (!symbol) throw new ValidationError('Symbol is required', 'symbol');
+    const validSymbol = symbol.trim().toUpperCase();
+    if (!/^[A-Z0-9.\-^]{1,10}$/.test(validSymbol)) throw new ValidationError('Invalid symbol format', 'symbol');
     return await fetchFromProxy<RecommendationTrend[]>(`/api/market/recommendations?symbol=${encodeURIComponent(validSymbol)}`, true);
-  } catch (err) {
-    if (err instanceof ValidationError) throw err;
-    console.error('[Finnhub] Recommendations fetch failed:', err);
+  } catch {
     return [];
   }
 }
 
 export async function getCompanyPeers(symbol: string): Promise<string[]> {
   try {
-    const validSymbol = validateSymbol(symbol);
+    if (!symbol) throw new ValidationError('Symbol is required', 'symbol');
+    const validSymbol = symbol.trim().toUpperCase();
+    if (!/^[A-Z0-9.\-^]{1,10}$/.test(validSymbol)) throw new ValidationError('Invalid symbol format', 'symbol');
     const data = await fetchFromProxy<{ peers: string[] }>(`/api/market/peers?symbol=${encodeURIComponent(validSymbol)}`, true);
     return data?.peers || [];
-  } catch (err) {
-    if (err instanceof ValidationError) throw err;
-    console.error('[Finnhub] Peers fetch failed:', err);
+  } catch {
     return [];
   }
 }
@@ -405,30 +303,41 @@ export async function getNewsSentiment(symbol: string): Promise<{
   sentiment: { bearishPercent: number; bullishPercent: number };
 } | null> {
   try {
-    const validSymbol = validateSymbol(symbol);
+    if (!symbol) throw new ValidationError('Symbol is required', 'symbol');
+    const validSymbol = symbol.trim().toUpperCase();
+    if (!/^[A-Z0-9.\-^]{1,10}$/.test(validSymbol)) throw new ValidationError('Invalid symbol format', 'symbol');
     return await fetchFromProxy<{
       buzz: { articlesInLastWeek: number; weeklyAverage: number };
       sentiment: { bearishPercent: number; bullishPercent: number };
     }>(`/api/market/news-sentiment?symbol=${encodeURIComponent(validSymbol)}`, true);
-  } catch (err) {
-    if (err instanceof ValidationError) throw err;
-    console.error('[Finnhub] News sentiment fetch failed:', err);
+  } catch {
     return null;
   }
 }
 
 export async function getStockSymbols(exchange: string): Promise<{ symbol: string; description: string; type: string; displaySymbol: string }[]> {
   try {
-    if (!exchange || exchange.length > 10) {
-      throw new ValidationError('Invalid exchange', 'exchange');
-    }
+    if (!exchange || exchange.length > 10) throw new ValidationError('Invalid exchange', 'exchange');
     return await fetchFromProxy<{ symbol: string; description: string; type: string; displaySymbol: string }[]>(
-      `/api/market/symbols?exchange=${encodeURIComponent(exchange)}`,
-      true
+      `/api/market/symbols?exchange=${encodeURIComponent(exchange)}`, true
     );
-  } catch (err) {
-    if (err instanceof ValidationError) throw err;
-    console.error('[Finnhub] Stock symbols fetch failed:', err);
+  } catch {
+    return [];
+  }
+}
+
+export async function getSectorPerformance(): Promise<SectorPerformance[]> {
+  try {
+    return await fetchFromProxy<SectorPerformance[]>(`/api/market/sectors`, true);
+  } catch {
+    return [];
+  }
+}
+
+export async function getMarketIndices(): Promise<MarketIndex[]> {
+  try {
+    return await fetchFromProxy<MarketIndex[]>(`/api/market/indices`, false);
+  } catch {
     return [];
   }
 }
@@ -439,12 +348,10 @@ export async function getStockSymbols(exchange: string): Promise<{ symbol: strin
 
 function calculateRSI(closes: number[], period = 14): number | null {
   if (closes.length < period + 1) return null;
-  let gains = 0;
-  let losses = 0;
+  let gains = 0; let losses = 0;
   for (let i = closes.length - period; i < closes.length; i++) {
     const change = closes[i] - closes[i - 1];
-    if (change > 0) gains += change;
-    else losses += Math.abs(change);
+    if (change > 0) gains += change; else losses += Math.abs(change);
   }
   if (losses === 0) return 100;
   const rs = gains / losses;
@@ -458,16 +365,12 @@ function calculateSMA(closes: number[], period: number): number | null {
 }
 
 export async function getTechnicalIndicators(symbol: string): Promise<{
-  rsi14: number | null;
-  sma50: number | null;
-  sma200: number | null;
-  pricePerformance1Y: number | null;
+  rsi14: number | null; sma50: number | null; sma200: number | null; pricePerformance1Y: number | null;
 } | null> {
   try {
-    const validSymbol = validateSymbol(symbol);
     const to = Math.floor(Date.now() / 1000);
-    const from = to - 400 * 24 * 60 * 60; // ~400 days for 200 SMA
-    const data = await getCandles(validSymbol, 'D', from, to);
+    const from = to - 400 * 24 * 60 * 60;
+    const data = await getCandles(symbol, 'D', from, to);
     if (!data || data.c.length < 50) return null;
 
     const closes = data.c;
@@ -481,32 +384,8 @@ export async function getTechnicalIndicators(symbol: string): Promise<{
         : null;
 
     return { rsi14, sma50, sma200, pricePerformance1Y };
-  } catch (err) {
-    if (err instanceof ValidationError) throw err;
-    console.error('[Finnhub] Technical indicators failed:', err);
+  } catch {
     return null;
-  }
-}
-
-// =====================
-// Market Overview (via Proxy)
-// =====================
-
-export async function getSectorPerformance(): Promise<SectorPerformance[]> {
-  try {
-    return await fetchFromProxy<SectorPerformance[]>(`/api/market/sectors`, true);
-  } catch (err) {
-    console.error('[Finnhub] Sector performance failed:', err);
-    return [];
-  }
-}
-
-export async function getMarketIndices(): Promise<MarketIndex[]> {
-  try {
-    return await fetchFromProxy<MarketIndex[]>(`/api/market/indices`, false);
-  } catch (err) {
-    console.error('[Finnhub] Market indices failed:', err);
-    return [];
   }
 }
 
@@ -543,33 +422,18 @@ export function formatPercent(value: number | null | undefined): string {
 }
 
 export function formatDate(timestamp: number): string {
-  // Handle both seconds and milliseconds timestamps
   const ms = timestamp < 1e12 ? timestamp * 1000 : timestamp;
-  return new Date(ms).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+  return new Date(ms).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 export function formatDateTime(timestamp: number): string {
   const ms = timestamp < 1e12 ? timestamp * 1000 : timestamp;
-  return new Date(ms).toLocaleString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return new Date(ms).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 export function formatTime(timestamp: number): string {
   const ms = timestamp < 1e12 ? timestamp * 1000 : timestamp;
-  return new Date(ms).toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
+  return new Date(ms).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 export function getUnixTimestamp(daysAgo: number): number {
@@ -580,7 +444,6 @@ export function getUnixTimestampFromHours(hoursAgo: number): number {
   return Math.floor(Date.now() / 1000) - hoursAgo * 60 * 60;
 }
 
-// Popular US stock symbols for initial display
 export const POPULAR_US_SYMBOLS = [
   'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'JPM', 'V', 'JNJ',
   'WMT', 'UNH', 'HD', 'MA', 'PG', 'DIS', 'BAC', 'KO', 'PEP', 'CSCO',
