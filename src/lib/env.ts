@@ -7,7 +7,6 @@
 interface EnvConfig {
   VITE_SUPABASE_URL: string;
   VITE_SUPABASE_ANON_KEY: string;
-  VITE_PROXY_URL: string;
   VITE_APP_NAME: string;
   VITE_APP_ENV: string;
 }
@@ -16,7 +15,6 @@ function validateEnv(): EnvConfig {
   const required = [
     'VITE_SUPABASE_URL',
     'VITE_SUPABASE_ANON_KEY',
-    'VITE_PROXY_URL',
   ] as const;
 
   const missing = required.filter(key => !import.meta.env[key]);
@@ -53,11 +51,9 @@ function validateEnv(): EnvConfig {
 
   // Validate URL formats
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const proxyUrl = import.meta.env.VITE_PROXY_URL;
   
   try {
     new URL(supabaseUrl);
-    new URL(proxyUrl);
   } catch {
     const errorMsg = '[FATAL] Invalid URL format in environment variables';
     console.error(errorMsg);
@@ -72,7 +68,6 @@ function validateEnv(): EnvConfig {
   return {
     VITE_SUPABASE_URL: supabaseUrl,
     VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY,
-    VITE_PROXY_URL: proxyUrl,
     VITE_APP_NAME: import.meta.env.VITE_APP_NAME || 'InvestPredictor',
     VITE_APP_ENV: import.meta.env.VITE_APP_ENV || 'development',
   };
